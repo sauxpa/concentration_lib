@@ -12,7 +12,7 @@ setup(
     description="Library for basic concentration bounds",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sauxpa/concentration",
+    url="https://github.com/sauxpa/concentration_lib",
     install_requires=['numpy', 'scipy'],
     python_requires='>=3.6',
 )
