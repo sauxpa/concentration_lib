@@ -102,7 +102,7 @@ def bentkus_std_dev_bound(
             bentkus_bound(
                 delta,
                 n2,
-                (B - B_minus) ** 2 * 3 / 32,
+                (B - B_minus) ** 2 * 3 / 16,
                 (B - B_minus) ** 2 / 2,
                 mode='mean'
                 )
@@ -114,7 +114,7 @@ def bentkus_std_dev_bound(
                 bentkus_bound(
                     delta,
                     n2[i],
-                    (B - B_minus) ** 2 * 3 / 32,
+                    (B - B_minus) ** 2 * 3 / 16,
                     (B - B_minus) ** 2 / 2,
                     mode='mean',
                     )
