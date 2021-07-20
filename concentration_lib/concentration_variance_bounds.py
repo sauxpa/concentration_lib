@@ -8,6 +8,7 @@ def hoeffding_std_dev_bound(
     n: Union[List, int],
     B: float,
     B_minus: float = None,
+    mode: str = 'mean',
 ) -> float:
     """Hoeffding standard deviation concentration bound:
     P(sigma - sigma_hat >= bound) <= delta.
@@ -28,13 +29,22 @@ def hoeffding_std_dev_bound(
 
     B_minus: float
     Support lower bound (-B by default).
+
+    mode: str
+    Concentration of sum or mean.
     """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
+
     if not B_minus:
         B_minus = -B
 
-    return np.sqrt(3 / 8) * (B - B_minus) * (
+    bound_mean = np.sqrt(3 / 8) * (B - B_minus) * (
         2 / np.floor(n / 2) * np.log(1 / delta)
         ) ** 0.25
+    if mode == 'mean':
+        return bound_mean
+    else:
+        return bound_mean * n
 
 
 def maurer_pontil_std_dev_bound(
@@ -42,6 +52,7 @@ def maurer_pontil_std_dev_bound(
     n: Union[List, int],
     B: float,
     B_minus: float = None,
+    mode: str = 'mean',
 ) -> float:
     """Maurer-Pontil standard deviation concentration bound:
     P(sigma - sigma_hat >= bound) <= delta.
@@ -60,11 +71,21 @@ def maurer_pontil_std_dev_bound(
 
     sigma_hat: float or list
     Empirical standard deviation of X.
+
+    mode: str
+    Concentration of sum or mean.
     """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
+
     if not B_minus:
         B_minus = -B
 
-    return (B - B_minus) * np.sqrt(2 / (n - 1) * np.log(1 / delta))
+    bound_mean = (B - B_minus) * np.sqrt(2 / (n - 1) * np.log(1 / delta))
+
+    if mode == 'mean':
+        return bound_mean
+    else:
+        return bound_mean * n
 
 
 def bentkus_std_dev_bound(
@@ -72,9 +93,10 @@ def bentkus_std_dev_bound(
     n: Union[List, int],
     B: float,
     B_minus: float = None,
+    upper_or_lower: str = 'lower',
+    mode: str = 'mean',
 ) -> float:
-    """Bentkus standard deviation concentration bound:
-    P(sigma - sigma_hat >= bound) <= delta.
+    """Bentkus standard deviation concentration bound.
 
     Follows from writing the sample variance as a sum of U statistics,
     which are themselves bounded if the underlying X_1, ..., X_n are.
@@ -92,41 +114,51 @@ def bentkus_std_dev_bound(
 
     B_minus: float
     Support lower bound (-B by default).
+
+    upper_or_lower: str
+    Bentkus bound is asymmetric for the variance.
+    Upper: P(sigma  > sigma_hat + U_+(delta)) < delta
+    Lower: P(sigma  < sigma_hat - U_-(delta)) < delta
+
+    mode: str
+    Concentration of sum or mean.
     """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
+    assert upper_or_lower in ['lower', 'upper']
+
     if not B_minus:
         B_minus = -B
 
     n2 = np.floor(n / 2).astype('int')
-    if isinstance(n, int):
-        bound = np.sqrt(
-            bentkus_bound(
-                delta,
-                n2,
-                (B - B_minus) ** 2 * 3 / 16,
-                (B - B_minus) ** 2 / 2,
-                mode='mean'
-                )
-            )
+
+    if upper_or_lower == 'upper':
+        B2 = (B - B_minus) ** 2 / 4
     else:
-        bound = np.zeros(len(n))
-        for i in range(len(n)):
-            bound[i] = np.sqrt(
-                bentkus_bound(
-                    delta,
-                    n2[i],
-                    (B - B_minus) ** 2 * 3 / 16,
-                    (B - B_minus) ** 2 / 2,
-                    mode='mean',
-                    )
-                )
-    return bound
+        B2 = (B - B_minus) ** 2 / 2
+
+    bound_mean = np.sqrt(
+        bentkus_bound(
+            delta,
+            n2,
+            (B - B_minus) ** 2 * 3 / 16,
+            B2,
+            mode='mean'
+            )
+        )
+
+    if mode == 'mean':
+        return bound_mean
+    else:
+        return bound_mean * n
 
 
 def bentkus_pinelis_std_dev_bound(
     delta: float,
     n: Union[List, int],
+    sigma_hat: Union[List, float],
     B: float,
-    X: List,
+    B_minus: float = None,
+    mode: str = 'mean',
 ) -> float:
     """Bentkus standard deviation concentration bound
     with Pinelis relaxation:
@@ -138,25 +170,39 @@ def bentkus_pinelis_std_dev_bound(
     n: int or list
     Sample size.
 
-    B: float
-    Support in [-B, B].
+    sigma_hat: float or list
+    Empirical standard variation.
 
-    X: list
-    Samples of X.
+    B: float
+    Support upper bound.
+
+    B_minus: float
+    Support lower bound (-B by default).
+
+    mode: str
+    Concentration of sum or mean.
     """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
+
     from scipy.stats import norm
-    sigma_hat = np.sqrt(np.mean((X[0:-1:2] - X[1::2]) ** 2) / 2)
+
+    if not B_minus:
+        B_minus = -B
 
     n2 = np.floor(n / 2).astype('int')
     c = np.exp(2) / 2
-    q = B * norm.ppf(1 - delta / c) / (np.sqrt(2 * n2))
+    q = (B - B_minus) * norm.ppf(1 - delta / c) / (2 * np.sqrt(2 * n2))
 
-    if isinstance(n, int):
-        bound = -sigma_hat + q + np.sqrt(q ** 2 + sigma_hat ** 2)
+    if np.issubdtype(type(n), np.integer):
+        bound_mean = -sigma_hat + q + np.sqrt(q ** 2 + sigma_hat ** 2)
     else:
-        bound = np.zeros(len(n))
+        bound_mean = np.zeros(len(n))
         for i in range(len(n)):
-            bound = -sigma_hat[i] + q[i] + np.sqrt(
+            bound_mean = -sigma_hat[i] + q[i] + np.sqrt(
                 q[i] ** 2 + sigma_hat[i] ** 2
                 )
-    return bound
+
+    if mode == 'mean':
+        return bound_mean
+    else:
+        return bound_mean * n

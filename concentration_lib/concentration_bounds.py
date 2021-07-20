@@ -55,6 +55,7 @@ def hoeffding_bound(
     mode: str
     Concentration of sum or mean.
     """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
     if not B_minus:
         B_minus = -B
     R = (B - B_minus) / 2
@@ -111,6 +112,45 @@ def bentkus_bound(
     tol: float = 1e-8,
 ) -> float:
     """Bentkus concentration bound using binomial quantile.
+
+    delta: float
+    Confidence level.
+
+    n: int or list
+    Sample size.
+
+    A: float
+    Standard deviation bound.
+
+    B: float
+    Support upper bound.
+
+    mode: str
+    Concentration of sum or mean.
+
+    tol: float
+    Small epsilon to add for an edge case in computing quantiles.
+    """
+    assert mode in ['sum', 'mean'], 'Unknown mode {:s}'.format(mode)
+    if np.issubdtype(type(n), np.integer):
+        bound = _bentkus_bound(delta, n, A, B, mode, tol)
+    else:
+        bound = np.zeros(len(n))
+        for i in range(len(n)):
+            bound[i] = _bentkus_bound(delta, n[i], A, B, mode, tol)
+    return bound
+
+
+def _bentkus_bound(
+    delta: float,
+    n: int,
+    A: float,
+    B: float,
+    mode: str = 'sum',
+    tol: float = 1e-8,
+) -> float:
+    """Bentkus concentration bound using binomial quantile.
+    Helper function (will need better vectorisation in the future).
 
     delta: float
     Confidence level.

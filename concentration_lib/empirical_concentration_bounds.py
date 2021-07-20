@@ -47,7 +47,7 @@ def empirical_bernstein_bound(
 def empirical_bentkus_bound(
     delta: float,
     n: Union[List, int],
-    X: List,
+    sigma_hat: Union[List, float],
     B: float,
     B_minus: float = None,
     mode: str = 'sum',
@@ -63,8 +63,8 @@ def empirical_bentkus_bound(
     n: int or list
     Sample size.
 
-    X: list
-    Samples.
+    sigma_hat: float
+    Empirical standard deviation.
 
     B: float
     Support upper bound.
@@ -84,8 +84,7 @@ def empirical_bentkus_bound(
     g = 1 / (2 * np.sqrt(2 * n)) * (B - B_minus) * norm.ppf(
         1 - 2 * delta / np.exp(2)
         )
-    V_hat = np.mean((X[0:-1:2] - X[1::2]) ** 2) / 2
-    A = g + np.sqrt(g ** 2 + V_hat)
+    A = g + np.sqrt(g ** 2 + sigma_hat ** 2)
     return bentkus_bound(delta / 2, n, A, B, mode=mode, tol=tol)
 
 
