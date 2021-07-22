@@ -88,7 +88,7 @@ def maurer_pontil_std_dev_bound(
         return bound_mean * n
 
 
-def bentkus_std_dev_bound(
+def bentkus_std_dev_bound_crude(
     delta: float,
     n: Union[List, int],
     B: float,
