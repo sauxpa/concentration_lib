@@ -6,7 +6,6 @@ one or two sided bounds...)
 # Author: Patrick Saux <patrick.saux@inria.fr>
 
 import numpy as np
-import pandas as pd
 from typing import Callable, List, Union
 from scipy.optimize import root_scalar as root_scalar_scipy
 from scipy.optimize.zeros import RootResults
@@ -351,30 +350,4 @@ def return_interval_root_search_bound2(
 
     return return_bound(
         n, bound_mean, side, 'mean', mode
-        )
-
-
-def intersection_uniform_bound(bounds: List[float], side='lower'):
-    """Compute the running intersection of time-uniform confidence intervals.
-
-    bounds: List
-    Dimensions are assumed to be (N,) or (N, M) if side == 'lower' or
-    side == 'upper' and (2, N,) or (2, N, M) is side == 'both',
-    where N is the number of observations and M the number of replicates
-    (in case of MC simulations).
-    """
-    check_side(side)
-
-    if side == 'lower':
-        return pd.DataFrame(bounds).cummax(axis=0).values
-    elif side == 'upper':
-        return pd.DataFrame(bounds).cummin(axis=0).values
-    else:
-        N, M = bounds.shape[1:]
-        return np.concatenate(
-            [
-                pd.Series(bounds[0]).cummax(axis=0).values.reshape(1, N, M),
-                pd.Series(bounds[1]).cummin(axis=0).values.reshape(1, N, M),
-            ],
-            axis=0,
         )
