@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setup(
     name='concentration_lib',
     packages=['concentration_lib'],
-    version='0.1.2',
+    version='0.2.0',
     author="Patrick Saux",
     author_email="patrick.saux@ginria.fr",
     description="Library for concentration bounds",
