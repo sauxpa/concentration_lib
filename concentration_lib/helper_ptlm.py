@@ -32,7 +32,7 @@ def upper_triangle_vertices(n, lower=0, upper=1):
 
 
 def vertices_with_intersection(n, lower, upper, T, z, degree):
-    """ Find all vertices of the n-dimensional polyhedron defined by
+    """Find all vertices of the n-dimensional polyhedron defined by
     x1<=x2 <= ...<= xn, lower<=Xi <=upper for all 1<= i <= n
     and <T,x**degree> <= <T,z**degree>
     where x**degree denote element-wise operation.
@@ -68,11 +68,11 @@ def vertices_with_intersection(n, lower, upper, T, z, degree):
     # X1<=X2 <= ...<= Xn,
     # 0<=Xi <=1 for all 1<= i <= n
     for i in range(len(vertices)):
-        for j in range(i+1, len(vertices)):
+        for j in range(i + 1, len(vertices)):
             vi = vertices[i]
             vj = vertices[j]
             add_intersection = False
-            if lower != - np.inf:
+            if lower != -np.inf:
                 # The interval (vi, vj) intersects with the plane T(x) = T(z)
                 if Tv[i] * Tv[j] <= 0:
                     add_intersection = True
@@ -98,43 +98,37 @@ def vertices_with_intersection(n, lower, upper, T, z, degree):
                 masked_coeff = np.sum(T[ma.getmask(line_direction)])
                 if masked_coeff != 0:
                     rr = (
-                        Tz - np.dot(
-                            T,
-                            np.power(
-                                line_direction.filled(fill_value=0), degree
-                                )
-                            )
-                        ) / masked_coeff
+                        Tz
+                        - np.dot(
+                            T, np.power(line_direction.filled(fill_value=0), degree)
+                        )
+                    ) / masked_coeff
                     if (degree == 2 and rr >= 0) or degree == 1:
                         t = rr ** (1 / degree)
                         # Fill the masked value by t
                         intersection = line_direction.filled(fill_value=t)
                         # Add the intersection to the list of candidates
-                        candidates = np.append(
-                            candidates,
-                            [intersection],
-                            axis=0
-                            )
+                        candidates = np.append(candidates, [intersection], axis=0)
                 elif Tz - np.dot(T, np.power(line_direction, degree)) == 0:
                     # the edge is in the plane (T(x) = T(z))
                     intersection_min = line_direction.filled(fill_value=lower)
                     intersection_max = line_direction.filled(fill_value=upper)
                     candidates = np.append(
-                        candidates, [intersection_min, intersection_max],
-                        axis=0
-                        )
+                        candidates, [intersection_min, intersection_max], axis=0
+                    )
 
     return candidates
 
 
-def b_alpha_linear_inner(z,
-                         alpha,
-                         T,
-                         lower=0,
-                         upper=1,
-                         num_samples=10000,
-                         degree=1,
-                         ):
+def b_alpha_linear_inner(
+    z,
+    alpha,
+    T,
+    lower=0,
+    upper=1,
+    num_samples=10000,
+    degree=1,
+):
     """
     Args:
       z: The sample
@@ -171,14 +165,14 @@ def b_alpha_linear_inner(z,
     u_list01 = np.append(u_list0, np.ones((num_samples, 1)), axis=1)
     sorted_u_list = np.sort(u_list01, axis=1)
     # Calculate the list of [u_{i}- u_{i-1} ,1<=i <= n+1] for all sample U
-    u_delta_list = sorted_u_list[:, 1:] - sorted_u_list[:, :n+1]
+    u_delta_list = sorted_u_list[:, 1:] - sorted_u_list[:, : n + 1]
 
     candidates = vertices_with_intersection(n, lower, upper, T, z, degree)
 
     # Add upper to the vertices in the candidate set
     candidates1 = np.append(
         candidates, upper * np.ones((candidates.shape[0], 1)), axis=1
-        )
+    )
     sorted_candidates1 = np.sort(candidates1, axis=1)
     # Calculate m(x,U) = <x, delta_u>
     b_mat = sorted_candidates1 @ u_delta_list.T
@@ -189,7 +183,7 @@ def b_alpha_linear_inner(z,
 
 
 def b_alpha_l2norm(z, alpha, upper=1.0, lower=0.0, num_samples=10000):
-    """ This function calculuates the value of the bound when the function T is
+    """This function calculuates the value of the bound when the function T is
         the l2 norm and the lower bound of the support is 0.
     Args:
       z: The samlpe
@@ -216,29 +210,24 @@ def b_alpha_l2norm(z, alpha, upper=1.0, lower=0.0, num_samples=10000):
         upper=upper,
         num_samples=num_samples,
         degree=2,
-        )
+    )
 
-    ascending = np.all(
-        u_delta_list[:, :n-1] - u_delta_list[:, 1:n] <= 0, axis=1
-        )
-    intersection = u_delta_list[:, :n] / norm(
-        u_delta_list[:, :n],
-        axis=1
-        )[:, None] * norm(z)
+    ascending = np.all(u_delta_list[:, : n - 1] - u_delta_list[:, 1:n] <= 0, axis=1)
+    intersection = (
+        u_delta_list[:, :n] / norm(u_delta_list[:, :n], axis=1)[:, None] * norm(z)
+    )
 
     intersection_bounded = np.all(intersection <= upper, axis=1)
     in_region = np.logical_and(ascending, intersection_bounded)
 
     intersection1 = np.append(
         intersection, upper * np.ones((intersection.shape[0], 1)), axis=1
-        )
+    )
 
-    b_u_intersection = np.einsum('ij,ij->i', intersection1, u_delta_list)
+    b_u_intersection = np.einsum("ij,ij->i", intersection1, u_delta_list)
 
-    b_list[in_region] = np.maximum(
-        b_list[in_region], b_u_intersection[in_region]
-        )
+    b_list[in_region] = np.maximum(b_list[in_region], b_u_intersection[in_region])
     sorted = np.sort(b_list)
-    r = sorted[int(np.ceil((1-alpha)*len(sorted)))]
+    r = sorted[int(np.ceil((1 - alpha) * len(sorted)))]
 
     return r

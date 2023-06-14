@@ -8,23 +8,45 @@ one or two sided bounds...)
 import numpy as np
 from typing import Callable, List, Union
 from scipy.optimize import root_scalar as root_scalar_scipy
-from scipy.optimize.zeros import RootResults
+from scipy.optimize import RootResults
 
 
 def check_mode(mode: str):
-    assert mode in {'sum', 'mean'}, 'Unknown mode {:s}'.format(mode)
+    assert mode in {"sum", "mean"}, "Unknown mode {:s}".format(mode)
 
 
 def check_side(side: str):
-    assert side in {'lower', 'upper', 'both'}, 'Unknown side {:s}'.format(side)
+    assert side in {"lower", "upper", "both"}, "Unknown side {:s}".format(side)
+
+
+def init_nan(n: int, side: str):
+    """Initialize an array of n np.nan."""
+    if side == "both":
+        bounds = np.ones((2, n)) * np.nan
+    else:
+        bounds = np.ones(n) * np.nan
+    return bounds
+
+
+def set_nan(bounds: List, side: str, n_start: int = 0, n_end: int = -1):
+    """Set the elements before n_start and after n_end to np.nan."""
+    if side == "both":
+        bounds[:, :n_start] = np.nan
+        if n_end > -1:
+            bounds[:, n_end:] = np.nan
+    else:
+        bounds[:n_start] = np.nan
+        if n_end > -1:
+            bounds[n_end:] = np.nan
+    return bounds
 
 
 def return_bound(
     n: Union[List, int],
     bound: Union[List, float],
-    side: str = 'lower',
-    current_mode: str = 'sum',
-    mode: str = 'sum',
+    side: str = "lower",
+    current_mode: str = "sum",
+    mode: str = "sum",
 ) -> Union[List, float]:
     """Utility function to return bound, depending on the mode
     (sum or mean) and side (lower, upper, both),
@@ -49,23 +71,33 @@ def return_bound(
     check_mode(mode)
     check_side(side)
 
-    if mode == 'mean' and current_mode == 'sum':
+    if mode == "mean" and current_mode == "sum":
         bound /= n
-    elif mode == 'sum' and current_mode == 'mean':
+    elif mode == "sum" and current_mode == "mean":
         bound *= n
 
     # If not specified otherwise, just assume the bounds are symmetric:
     # Upper: P(mu  > mu_hat + U(delta)) < delta
     # Lower: P(mu  < mu_hat - U(delta)) < delta
-    if side == 'both':
+    if side == "both":
         return np.array([bound, bound])
     else:
         return bound
 
 
+def make_single_time(bound_func, n, **kwargs):
+    side = kwargs.get("side")
+    kwargs.pop("n_start", None)
+    kwargs.pop("n_end", None)
+    if side == "both":
+        return bound_func(n_start=n, n_end=n + 1, **kwargs)[:, n]
+    else:
+        return bound_func(n_start=n, n_end=n + 1, **kwargs)[n]
+
+
 def root_scalar(
     f: Callable,
-    method='brentq',
+    method="brentq",
     bracket=(),
     safe=True,
     **kwargs,
@@ -87,8 +119,8 @@ def return_interval_root_search_bound(
     K: Callable,
     upper_bound: float = 1.0,
     lower_bound: float = 0.0,
-    side: str = 'lower',
-    mode: str = 'sum',
+    side: str = "lower",
+    mode: str = "sum",
     grid_lo: float = 1e-8,
     grid_up: float = 1 - 1e-8,
     grid_size: int = 10,
@@ -150,7 +182,7 @@ def return_interval_root_search_bound(
     # First do a coarse grid search to find such values.
     ii = 0
     while ii < n_try:
-        mm = np.linspace(grid_lo, grid_up, grid_size * (2 ** ii))
+        mm = np.linspace(grid_lo, grid_up, grid_size * (2**ii))
         grid = np.vectorize(K)(mm)
         # K should be positive near its 0 and 1, and negative
         # somewhere in between. If this is not the case for grid,
@@ -162,7 +194,7 @@ def return_interval_root_search_bound(
         ii += 1
     else:
         if not force_one_sided or len(grid_sign) == 0:
-            if side == 'both':
+            if side == "both":
                 return np.nan, np.nan
             else:
                 return np.nan
@@ -173,12 +205,14 @@ def return_interval_root_search_bound(
     # index where K is < 0
     mid = (left + right) // 2
 
-    if side == 'both':
+    if side == "both":
         try:
             ret_lo = root_scalar(
-                K, method='brentq',
-                bracket=(mm[left], mm[mid]), safe=safe,
-                )
+                K,
+                method="brentq",
+                bracket=(mm[left], mm[mid]),
+                safe=safe,
+            )
         except ValueError as e:
             if force_one_sided:
                 bound_mean_lo = mu_hat - lower_bound
@@ -190,21 +224,20 @@ def return_interval_root_search_bound(
                 if arg_transform is not None:
                     root = arg_transform(root)
                 bound_mean_lo = (
-                    mu_hat - lower_bound
-                    - (upper_bound - lower_bound) * root
-                    )
+                    mu_hat - lower_bound - (upper_bound - lower_bound) * root
+                )
             else:
                 bound_mean_lo = np.nan
         try:
             ret_up = root_scalar(
-                K, method='brentq',
-                bracket=(mm[mid], mm[right]), safe=safe,
-                )
+                K,
+                method="brentq",
+                bracket=(mm[mid], mm[right]),
+                safe=safe,
+            )
         except ValueError as e:
             if force_one_sided:
-                bound_mean_up = (
-                    -mu_hat + lower_bound + (upper_bound - lower_bound)
-                    )
+                bound_mean_up = -mu_hat + lower_bound + (upper_bound - lower_bound)
             else:
                 raise e
         else:
@@ -213,27 +246,26 @@ def return_interval_root_search_bound(
                 if arg_transform is not None:
                     root = arg_transform(root)
                 bound_mean_up = (
-                    -mu_hat + lower_bound
-                    + (upper_bound - lower_bound) * root
-                    )
+                    -mu_hat + lower_bound + (upper_bound - lower_bound) * root
+                )
             else:
                 bound_mean_up = np.nan
         return (
-            return_bound(n, bound_mean_lo, 'lower', 'mean', mode),
-            return_bound(n, bound_mean_up, 'upper', 'mean', mode)
-            )
+            return_bound(n, bound_mean_lo, "lower", "mean", mode),
+            return_bound(n, bound_mean_up, "upper", "mean", mode),
+        )
     else:
-        if side == 'upper':
+        if side == "upper":
             try:
                 ret = root_scalar(
-                    K, method='brentq',
-                    bracket=(mm[mid], mm[right]), safe=safe,
-                    )
+                    K,
+                    method="brentq",
+                    bracket=(mm[mid], mm[right]),
+                    safe=safe,
+                )
             except ValueError as e:
                 if force_one_sided:
-                    bound_mean_up = (
-                        -mu_hat + lower_bound + (upper_bound - lower_bound)
-                        )
+                    bound_mean = -mu_hat + lower_bound + (upper_bound - lower_bound)
                 else:
                     raise e
             else:
@@ -242,17 +274,18 @@ def return_interval_root_search_bound(
                     if arg_transform is not None:
                         root = arg_transform(root)
                     bound_mean = (
-                        -mu_hat + lower_bound
-                        + (upper_bound - lower_bound) * root
-                        )
+                        -mu_hat + lower_bound + (upper_bound - lower_bound) * root
+                    )
                 else:
                     bound_mean = np.nan
-        elif side == 'lower':
+        elif side == "lower":
             try:
                 ret = root_scalar(
-                    K, method='brentq',
-                    bracket=(mm[left], mm[mid]), safe=safe,
-                    )
+                    K,
+                    method="brentq",
+                    bracket=(mm[left], mm[mid]),
+                    safe=safe,
+                )
             except ValueError as e:
                 if force_one_sided:
                     bound_mean = mu_hat - lower_bound
@@ -264,20 +297,19 @@ def return_interval_root_search_bound(
                     if arg_transform is not None:
                         root = arg_transform(root)
                     bound_mean = (
-                        mu_hat - lower_bound
-                        - (upper_bound - lower_bound) * root
-                        )
+                        mu_hat - lower_bound - (upper_bound - lower_bound) * root
+                    )
                 else:
                     bound_mean = np.nan
-        return return_bound(n, bound_mean, side, 'mean', mode)
+        return return_bound(n, bound_mean, side, "mean", mode)
 
 
 def return_interval_root_search_bound2(
     n: int,
     mu_hat: float,
     f: Callable,
-    side: str = 'lower',
-    mode: str = 'sum',
+    side: str = "lower",
+    mode: str = "sum",
     grid_scale: float = 1.0,
     grid_size: int = 10,
     n_try: int = 7,
@@ -337,17 +369,100 @@ def return_interval_root_search_bound2(
         left = mm[grid_sign[0] - 1]
         right = mm[grid_sign[0]]
 
-        ret = root_scalar(f, method='brentq', bracket=(left, right))
+        ret = root_scalar(f, method="brentq", bracket=(left, right))
         if ret.converged:
-            if side == 'lower':
+            if side == "lower":
                 bound_mean = mu_hat - ret.root
-            elif side == 'upper':
+            elif side == "upper":
                 bound_mean = -mu_hat + ret.root
         else:
             bound_mean = np.nan
     else:
         bound_mean = np.nan
 
-    return return_bound(
-        n, bound_mean, side, 'mean', mode
+    return return_bound(n, bound_mean, side, "mean", mode)
+
+
+def intersection_uniform_bound(bounds: List[float], side="lower"):
+    """Compute the running intersection of time-uniform confidence intervals.
+
+    bounds: List
+    Dimensions are assumed to be (N,) or (N, M) if side == 'lower' or
+    side == 'upper' and (2, N,) or (2, N, M) is side == 'both',
+    where N is the number of observations and M the number of replicates
+    (in case of MC simulations).
+    """
+    import pandas as pd
+
+    check_side(side)
+
+    if side == "lower":
+        return pd.DataFrame(bounds).cummax(axis=0).values
+    elif side == "upper":
+        return pd.DataFrame(bounds).cummin(axis=0).values
+    else:
+        N, M = bounds.shape[1:]
+        return np.concatenate(
+            [
+                pd.Series(bounds[0]).cummax(axis=0).values.reshape(1, N, M),
+                pd.Series(bounds[1]).cummin(axis=0).values.reshape(1, N, M),
+            ],
+            axis=0,
         )
+
+
+def make_Laplace_transform_from_table(eta, R=1.0):
+    """Construct the Laplace transform of a centred generalised Gaussian
+    of exponent 1 + eta and scale parameter R by interpolating
+    tabulated values.
+    """
+    if eta == 1.0:
+        return lambda x: np.exp(0.5 * R**2 * x**2)
+    else:
+        import pickle
+        from scipy.interpolate import interp1d
+        from scipy.special import gamma
+
+        import os
+        import concentration_lib
+
+        file = concentration_lib.__file__
+        dir = os.path.dirname(file)
+
+        with open(dir + "/generalised_gaussian_table.pkl", "rb") as pickle_file:
+            dfs = pickle.load(pickle_file)
+        df = dfs[eta]
+
+        X = df.values[:, 0]
+        Y = df.values[:, 1]
+        x_max = np.max(X)
+        G = interp1d(X, Y, kind="linear")
+        c = 1 / gamma(1 / (1 + eta)) * np.sqrt(2 * np.pi / (1 + eta))
+
+        def F(x):
+            z = 2 ** (2 / (1 + eta)) * R**2 * x**2
+            if z <= x_max:
+                return G(z)
+            else:
+                zeta = (
+                    eta
+                    * 2 ** (1 / eta)
+                    / (1 + eta) ** (1 + 1 / eta)
+                    * np.abs(R * x) ** (1 + 1 / eta)
+                )
+                x_junction = np.sqrt(x_max) / (2 ** (1 / (1 + eta)) * R)
+                zeta_junction = (
+                    eta
+                    * 2 ** (1 / eta)
+                    / (1 + eta) ** (1 + 1 / eta)
+                    * np.abs(R * x_junction) ** (1 + 1 / eta)
+                )
+                return (
+                    c * zeta ** (1 / (1 + eta) - 0.5) * np.exp(zeta)
+                    + G(x_max)
+                    - c
+                    * zeta_junction ** (1 / (1 + eta) - 0.5)
+                    * np.exp(zeta_junction)  # for continuity
+                )
+
+        return np.vectorize(F)
